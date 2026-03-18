@@ -18,17 +18,24 @@ def health():
 def get_transcript(body: dict):
     url = body.get("url", "")
     video_id = extract_video_id(url)
+    
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+        
     try:
+        # NEW SYNTAX: Initialize the object first
+        ytt_api = YouTubeTranscriptApi()
+        
         try:
-            transcript_list = YouTubeTranscriptApi.get_transcript(
-                video_id, languages=['en']
-            )
+            # Try English first
+            transcript_list = ytt_api.fetch(video_id, languages=['en']).to_raw_data()
         except Exception:
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            # Fallback to default language
+            transcript_list = ytt_api.fetch(video_id).to_raw_data()
+            
         text = ' '.join([item['text'] for item in transcript_list])
         text = ' '.join(text.split())
+        
         return {
             "success": True,
             "transcript": text,
