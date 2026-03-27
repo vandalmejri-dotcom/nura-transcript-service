@@ -23,18 +23,19 @@ def get_transcript(body: dict):
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
         
     try:
-        # NEW SYNTAX: Initialize the object first
-        ytt_api = YouTubeTranscriptApi()
+        # Most resilient method: fetch the list of transcripts first
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         
         try:
-            # Try English first
-            transcript_list = ytt_api.fetch(video_id, languages=['en']).to_raw_data()
+            # Try to fetch the exact English transcript
+            transcript = transcript_list.find_transcript(['en'])
         except Exception:
-            # Fallback to default language
-            transcript_list = ytt_api.fetch(video_id).to_raw_data()
+            # If no English, fallback to the first available transcript (auto-generated or other language)
+            transcript = next(iter(transcript_list))
             
-        text = ' '.join([item['text'] for item in transcript_list])
-        text = ' '.join(text.split())
+        fetched_data = transcript.fetch()
+        text = ' '.join([item['text'] for item in fetched_data])
+        text = ' '.join(text.split()) # Clean up extra whitespace
         
         return {
             "success": True,
@@ -42,14 +43,9 @@ def get_transcript(body: dict):
             "wordCount": len(text.split())
         }
     except TranscriptsDisabled:
-        raise HTTPException(
-            status_code=422,
-            detail="Transcripts are disabled for this video."
-        )
+        raise HTTPException(status_code=422, detail="Transcripts are disabled for this video.")
     except NoTranscriptFound:
-        raise HTTPException(
-            status_code=422,
-            detail="No transcript found for this video."
-        )
+        raise HTTPException(status_code=422, detail="No transcript found for this video.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error fetching transcript: {str(e)}") # Log to Render console
+        raise HTTPException(status_code=500, detail=f"Internal extraction error: {str(e)}")
