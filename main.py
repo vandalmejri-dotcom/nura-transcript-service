@@ -17,12 +17,9 @@ def clean_vtt(vtt_content: str) -> str:
     last_text = ""
     for line in lines:
         line = line.strip()
-        # Skip headers, timestamps, and metadata
         if not line or line.startswith('WEBVTT') or line.startswith('NOTE') or '-->' in line or line.isdigit() or line.startswith('Kind:') or line.startswith('Language:'):
             continue
-        # Strip HTML/XML tags
         cleaned = re.sub(r'<[^>]+>', '', line).replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&nbsp;', ' ').strip()
-        # Deduplicate repeating lines (common in auto-generated subs)
         if cleaned and cleaned != last_text:
             segments.append(cleaned)
             last_text = cleaned
@@ -40,7 +37,7 @@ def get_transcript(body: dict):
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
         
-    # ATTEMPT 1: Primary direct extraction
+    # ATTEMPT 1: Direct extraction
     try:
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         try:
@@ -52,49 +49,48 @@ def get_transcript(body: dict):
         text = ' '.join([item['text'] for item in fetched_data])
         text = ' '.join(text.split())
         
-        return {
-            "success": True,
-            "transcript": text,
-            "wordCount": len(text.split())
-        }
+        return {"success": True, "transcript": text, "wordCount": len(text.split())}
         
     except Exception as e:
-        print(f"[Render] Primary extraction blocked. Engaging Piped Fallback. Error: {str(e)}")
+        print(f"[Render] Primary extraction blocked. Engaging Massive Fallback Array. Error: {str(e)}")
         
-        # ATTEMPT 2: Open-Source Proxy Network Fallback
+        # ATTEMPT 2: Massive Proxy Network Fallback (12 Highly-Active Instances)
         piped_instances = [
             "https://pipedapi.kavin.rocks",
+            "https://pipedapi.adminforge.de",
+            "https://pipedapi.drgns.space",
+            "https://piped-api.garudalinux.org",
+            "https://piped-api.lunar.icu",
+            "https://pi.ggtyler.dev",
+            "https://piped.mha.fi",
+            "https://api.piped.privacydev.net",
+            "https://pipedapi.r4fo.com",
             "https://pipedapi.tokhmi.xyz",
-            "https://pipedapi.smnz.de",
-            "https://piped.video"
+            "https://pipedapi.smnz.de"
         ]
         
         for instance in piped_instances:
             try:
-                res = requests.get(f"{instance}/streams/{video_id}", timeout=10)
+                # 5-second timeout so it quickly skips dead servers
+                res = requests.get(f"{instance}/streams/{video_id}", timeout=5)
                 if res.status_code == 200:
                     data = res.json()
                     subs = data.get("subtitles", [])
                     
-                    # Target English, fallback to first available
                     en_sub = next((s for s in subs if 'en' in s.get("code", "").lower() or 'english' in s.get("name", "").lower()), None)
                     if not en_sub and subs:
                         en_sub = subs[0]
                         
                     if en_sub:
-                        vtt_res = requests.get(en_sub["url"], timeout=10)
+                        vtt_res = requests.get(en_sub["url"], timeout=5)
                         clean_text = clean_vtt(vtt_res.text)
                         
                         if clean_text and len(clean_text) > 50:
-                            print(f"[Render] Successfully extracted via Piped instance: {instance}")
-                            return {
-                                "success": True,
-                                "transcript": clean_text,
-                                "wordCount": len(clean_text.split())
-                            }
-            except Exception as fallback_e:
-                print(f"[Render] Piped fallback failed on {instance}: {str(fallback_e)}")
+                            print(f"[Render] Success via {instance}")
+                            return {"success": True, "transcript": clean_text, "wordCount": len(clean_text.split())}
+            except Exception:
+                # Silently jump to the next proxy if this one times out or fails
                 continue
                 
-        # If both direct extraction AND proxy network fail
+        # If absolutely every proxy fails
         raise HTTPException(status_code=422, detail="YouTube is aggressively blocking extraction. Please use the Raw Text tab.")
