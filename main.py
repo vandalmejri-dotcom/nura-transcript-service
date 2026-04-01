@@ -93,11 +93,22 @@ def get_transcript(body: dict):
 
         if result.returncode != 0:
             stderr = result.stderr or ""
-            if "Video unavailable" in stderr or "Private video" in stderr:
+            stdout = result.stdout or ""
+            combined = stderr + stdout
+            if "Video unavailable" in combined or "Private video" in combined:
                 raise HTTPException(status_code=404, detail="This video is unavailable or private.")
-            if "Sign in" in stderr or "age" in stderr.lower():
+            # Use precise age-restriction phrases — NOT a generic "age" substring match
+            age_phrases = [
+                "Sign in to confirm your age",
+                "age-restricted",
+                "age restricted",
+                "confirm your age",
+                "inappropriate for some users",
+            ]
+            if any(p.lower() in combined.lower() for p in age_phrases):
                 raise HTTPException(status_code=403, detail="This video requires sign-in (age-restricted).")
-            raise Exception(f"yt-dlp failed: {stderr[:300]}")
+            print(f"[Transcript] yt-dlp non-zero exit. stderr: {stderr[:400]}")
+            raise Exception(f"yt-dlp failed (code {result.returncode}): {stderr[:300]}")
 
         info = json.loads(result.stdout)
 
