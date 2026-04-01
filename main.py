@@ -84,11 +84,15 @@ def get_transcript(body: dict):
                 "--dump-json",
                 "--no-warnings",
                 "--no-check-certificates",
+                "--no-playlist",
+                # Use iOS/Android clients — these bypass YouTube's bot detection
+                # on server IPs without needing cookies or a real browser session.
+                "--extractor-args", "youtube:player_client=ios,mweb,android",
                 f"https://www.youtube.com/watch?v={video_id}",
             ],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=45,
         )
 
         if result.returncode != 0:
@@ -107,6 +111,9 @@ def get_transcript(body: dict):
             ]
             if any(p.lower() in combined.lower() for p in age_phrases):
                 raise HTTPException(status_code=403, detail="This video requires sign-in (age-restricted).")
+            # Bot/cookie detection — all clients failed
+            if "not a bot" in combined or "confirm you're not" in combined or "Sign in to confirm" in combined:
+                raise HTTPException(status_code=422, detail="YouTube blocked extraction on this video. Please try a different video or paste the transcript as Raw Text.")
             print(f"[Transcript] yt-dlp non-zero exit. stderr: {stderr[:400]}")
             raise Exception(f"yt-dlp failed (code {result.returncode}): {stderr[:300]}")
 
