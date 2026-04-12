@@ -8,6 +8,10 @@ import os
 app = FastAPI()
 
 def extract_video_id(url: str):
+    # Strip everything after & or ? except v= parameter
+    # Clean the URL first
+    url = url.strip()
+    
     patterns = [
         r'youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})',
         r'youtu\.be\/([a-zA-Z0-9_-]{11})',
@@ -29,6 +33,9 @@ def get_transcript(body: dict):
     url = body.get("url", "")
     video_id = extract_video_id(url)
 
+    print(f"[Transcript] URL received: {url}")
+    print(f"[Transcript] Video ID extracted: {video_id}")
+
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
@@ -43,6 +50,7 @@ def get_transcript(body: dict):
     last_error = None
 
     for languages in language_attempts:
+        print(f"[Transcript] Attempting languages: {languages}")
         try:
             if languages:
                 transcript_list = YouTubeTranscriptApi.get_transcript(
@@ -78,6 +86,7 @@ def get_transcript(body: dict):
                 detail="No transcript available for this video. Captions may be disabled."
             )
         except Exception as e:
+            print(f"[Transcript] Error: {str(e)}")
             last_error = str(e)
             continue
 
